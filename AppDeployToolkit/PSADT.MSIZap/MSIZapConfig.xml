@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<MSIZap_Config>
+<!--# LICENSE #
+	PowerShell App Deployment Toolkit - MSI Zap Extension.
+	Copyright (C) 2023 - Leonardo Franco Maragna.
+	https://github.com/LFM8787/PSADT.MSIZap
+-->
+	<!--Configuration File Details-->
+	<Config_File>
+		<Config_Version>1.0</Config_Version>
+		<Config_Date>2023/02/07</Config_Date>
+	</Config_File>
+
+	<!--MSI Zap General Options-->
+	<MSIZap_Options>
+		<InvokeMSIZapAfterMsiUninstall>True</InvokeMSIZapAfterMsiUninstall>
+		<!-- [True/False] - Universal switch to activate/deactivate the extension.
+		If true, MSIZap will be executed at the end of any MSI uninstall. -->
+		<InvokeMSIZapIfUninstallFails>True</InvokeMSIZapIfUninstallFails>
+		<!-- [True/False] - MSIZap can fix uninstall problems, this switch overrides the values of
+		ExitOnProcessFailure and ContinueOnError from the original function and uses them after MSIZap. -->
+		<RemoveForAllUsersInUserContextIfAdmin>False</RemoveForAllUsersInUserContextIfAdmin>
+		<!-- [True/False] - Removes the product from all users when running in user context. -->
+		<RemoveForAllUsersInSystemContext>True</RemoveForAllUsersInSystemContext>
+		<!-- [True/False] - Removes the product from all users when running in system context. -->
+	</MSIZap_Options>
+	<!--MSI Zap General Options-->
+</MSIZap_Config>
