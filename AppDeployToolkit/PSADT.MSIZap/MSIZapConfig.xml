@@ -7,12 +7,14 @@
 -->
 	<!--Configuration File Details-->
 	<Config_File>
-		<Config_Version>1.0</Config_Version>
-		<Config_Date>2023/02/07</Config_Date>
+		<Config_Version>1.0.1</Config_Version>
+		<Config_Date>2023/02/08</Config_Date>
 	</Config_File>
 
 	<!--MSI Zap General Options-->
 	<MSIZap_Options>
+		<ExitScriptOnError>True</ExitScriptOnError>
+		<!-- [True/False] - Calls the Exit-Script function to perform cleanup actions instead of only throw an error. -->
 		<InvokeMSIZapAfterMsiUninstall>True</InvokeMSIZapAfterMsiUninstall>
 		<!-- [True/False] - Universal switch to activate/deactivate the extension.
 		If true, MSIZap will be executed at the end of any MSI uninstall. -->

@@ -4,9 +4,12 @@
 .DESCRIPTION
 	Runs MSIZap at the end of the Windows Installer application removal process.
 .NOTES
+	Extension Exit Codes:
+	70501: Invoke-MSIZap - The following error has been returned by MSIZap.
+
 	Author:  Leonardo Franco Maragna
-	Version: 1.0
-	Date:    2023/02/07
+	Version: 1.0.1
+	Date:    2023/02/08
 #>
 [CmdletBinding()]
 Param (
@@ -20,8 +23,8 @@ Param (
 ## Variables: Extension Info
 $MSIZapExtName = "MSIZapExtension"
 $MSIZapExtScriptFriendlyName = "MSI Zap Extension"
-$MSIZapExtScriptVersion = "1.0"
-$MSIZapExtScriptDate = "2023/02/07"
+$MSIZapExtScriptVersion = "1.0.1"
+$MSIZapExtScriptDate = "2023/02/08"
 $MSIZapExtSubfolder = "PSADT.MSIZap"
 $MSIZapExtConfigFileName = "MSIZapConfig.xml"
 
@@ -55,9 +58,9 @@ catch {}
 #  Get MSI Zap General Options
 [Xml.XmlElement]$xmlMSIZapOptions = $xmlMSIZapConfig.MSIZap_Options
 $configMSIZapGeneralOptions = [PSCustomObject]@{
+	ExitScriptOnError                     = Invoke-Expression -Command 'try { [boolean]::Parse([string]($xmlWIMFileOptions.ExitScriptOnError)) } catch { $true }'
 	InvokeMSIZapAfterMsiUninstall         = Invoke-Expression -Command 'try { [boolean]::Parse([string]($xmlMSIZapOptions.InvokeMSIZapAfterMsiUninstall)) } catch { $true }'
 	InvokeMSIZapIfUninstallFails          = Invoke-Expression -Command 'try { [boolean]::Parse([string]($xmlMSIZapOptions.InvokeMSIZapIfUninstallFails)) } catch { $false }'
-
 	RemoveForAllUsersInUserContextIfAdmin = Invoke-Expression -Command 'try { [boolean]::Parse([string]($xmlMSIZapOptions.RemoveForAllUsersInUserContextIfAdmin)) } catch { $true }'
 	RemoveForAllUsersInSystemContext      = Invoke-Expression -Command 'try { [boolean]::Parse([string]($xmlMSIZapOptions.RemoveForAllUsersInSystemContext)) } catch { $true }'
 }
@@ -95,12 +98,18 @@ Function New-DynamicFunction {
 		Logic of the function.
 	.PARAMETER ContinueOnError
 		Continue if an error occured while trying to create new function. Default: $false.
+	.INPUTS
+		None
+		You cannot pipe objects to this function.
+	.OUTPUTS
+		None
+		This function does not generate any output.
 	.EXAMPLE
 		New-DynamicFunction -Name 'Exit-ScriptOriginal' -Scope 'Script' -Value ${Function:Exit-Script}
 	.NOTES
 		This is an internal script function and should typically not be called directly.
 		Author: Leonardo Franco Maragna
-		Part of Toast Notification Extension
+		Part of MSI Zap Extension
 	.LINK
 		https://github.com/LFM8787/PSADT.MSIZap
 		http://psappdeploytoolkit.com
@@ -159,9 +168,14 @@ $FunctionsToRename | ForEach-Object { New-DynamicFunction -Name $_.Name -Scope $
 Function Execute-MSI {
 	<#
 	.SYNOPSIS
-		Wraps the original function but removes the ExitOnProcessFailure and ContinueOnError before.
+		Executes msiexec.exe to perform the following actions for MSI & MSP files and MSI product codes: install, uninstall, patch, repair, active setup.
 	.DESCRIPTION
-		Wraps the original function but removes the ExitOnProcessFailure and ContinueOnError before.
+		Invokes MSIZap after uninstallation if enabled and removes the ExitOnProcessFailure and ContinueOnError before.
+		Executes msiexec.exe to perform the following actions for MSI & MSP files and MSI product codes: install, uninstall, patch, repair, active setup.
+		If the -Action parameter is set to "Install" and the MSI is already installed, the function will exit.
+		Sets default switches to be passed to msiexec based on the preferences in the XML configuration file.
+		Automatically generates a log file name and creates a verbose log file for all msiexec operations.
+		Expects the MSI or MSP file to be located in the "Files" sub directory of the App Deploy Toolkit. Expects transform files to be in the same directory as the MSI file.
 	.PARAMETER Action
 		The action to perform. Options: Install, Uninstall, Patch, Repair, ActiveSetup.
 	.PARAMETER Path
@@ -193,7 +207,7 @@ Function Execute-MSI {
 		Returns ExitCode, STDOut, and STDErr output from the process.
 	.PARAMETER IgnoreExitCodes
 		List the exit codes to ignore or * to ignore all exit codes.
-	.PARAMETER PriorityClass	
+	.PARAMETER PriorityClass
 		Specifies priority class for the process. Options: Idle, Normal, High, AboveNormal, BelowNormal, RealTime. Default: Normal
 	.PARAMETER ExitOnProcessFailure
 		Specifies whether the function should call Exit-Script when the process returns an exit code that is considered an error/failure. Default: $true
@@ -201,9 +215,30 @@ Function Execute-MSI {
 		Specifies whether we should repair from source. Also rewrites local cache. Default: $false
 	.PARAMETER ContinueOnError
 		Continue if an error occurred while trying to start the process. Default: $false.
+	.INPUTS
+		None
+		You cannot pipe objects to this function.
+	.OUTPUTS
+		PSObject
+		Returns a PSObject with the results of the installation
+		- ExitCode
+		- STDOut
+		- STDErr
 	.EXAMPLE
 		Execute-MSI -Action 'Install' -Path 'Adobe_FlashPlayer_11.2.202.233_x64_EN.msi'
 		Installs an MSI
+	.EXAMPLE
+		Execute-MSI -Action 'Install' -Path 'Adobe_FlashPlayer_11.2.202.233_x64_EN.msi' -Transform 'Adobe_FlashPlayer_11.2.202.233_x64_EN_01.mst' -Parameters '/QN'
+		Installs an MSI, applying a transform and overriding the default MSI toolkit parameters
+	.EXAMPLE
+		[PSObject]$ExecuteMSIResult = Execute-MSI -Action 'Install' -Path 'Adobe_FlashPlayer_11.2.202.233_x64_EN.msi' -PassThru
+		Installs an MSI and stores the result of the execution into a variable by using the -PassThru option
+	.EXAMPLE
+		Execute-MSI -Action 'Uninstall' -Path '{26923b43-4d38-484f-9b9e-de460746276c}'
+		Uninstalls an MSI using a product code
+	.EXAMPLE
+		Execute-MSI -Action 'Patch' -Path 'Adobe_Reader_11.0.3_EN.msp'
+		Installs an MSP
 	.NOTES
 		Author: Leonardo Franco Maragna
 		Part of MSI Zap Extension
@@ -315,7 +350,7 @@ Function Execute-MSI {
 
 		if ($configMSIZapGeneralOptions.InvokeMSIZapAfterMsiUninstall) {
 			if ($Action -eq "Uninstall" -and [IO.Path]::GetExtension($Path) -ne ".msp") {
-				#Estoy desinstalando desde un msi o producto, tengo en $Path el valor
+				#  Invokes MSIZap with the original -ExitOnProcessFailure and -ContinueOnError values
 				Invoke-MSIZap -Path $Path -ExitOnProcessFailure $ExitOnProcessFailure -ContinueOnError $ContinueOnError
 
 				#  Refresh environment variables for Windows Explorer process as Windows does not consistently update environment variables created by MSIs
@@ -344,6 +379,12 @@ Function Invoke-MSIZap {
 		Specifies whether the function should call Exit-Script when the process returns an exit code that is considered an error/failure. Default: $true
 	.PARAMETER ContinueOnError
 		Continue if an error occurred while trying to start the process. Default: $false.
+	.INPUTS
+		None
+		You cannot pipe objects to this function.
+	.OUTPUTS
+		None
+		This function does not generate any output.
 	.EXAMPLE
 		Invoke-MSIZap -Path '{A1E2B44D-3F7A-93AF-9423-AB73411328DC}'
 	.NOTES
@@ -432,7 +473,14 @@ Function Invoke-MSIZap {
 		}
 
 		if (-not [string]::IsNullOrWhiteSpace($MSIZapReturnedObject.StdErr)) {
-			$MSIZapReturnedObject.StdErr | ForEach-Object { Write-Log -Message $_ -Severity 3 -Source ${CmdletName} -DebugMessage }
+
+			Write-Log -Message "The following error has been returned by MSIZap:" -Severity 3 -Source ${CmdletName}
+			$MSIZapReturnedObject.StdErr | ForEach-Object { Write-Log -Message $_ -Severity 3 -Source ${CmdletName} }
+
+			if (-not $ContinueOnError) {
+				if ($configMSIZapGeneralOptions.ExitScriptOnError) { Exit-Script -ExitCode 70501 }
+				throw "The following error has been returned by MSIZap:`r`n$($MSIZapReturnedObject.StdErr)"
+			}
 		}
 	}
 	End {
